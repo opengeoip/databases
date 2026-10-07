@@ -27,6 +27,35 @@ Each release also has a `SHA256SUMS` file and build provenance attestations:
 gh attestation verify opengeoip-country.mmdb --owner opengeoip
 ```
 
+## Container images
+
+Each database is also published as an OCI image holding only its file, at the root: `ghcr.io/opengeoip/country`, `ghcr.io/opengeoip/city` and `ghcr.io/opengeoip/asn`, tagged with the release name and `latest`. They suit Kubernetes [image volumes](https://kubernetes.io/docs/tasks/configure-pod-container/image-volumes/):
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: app
+spec:
+  containers:
+    - name: app
+      image: example.org/app
+      volumeMounts:
+        - name: geoip
+          mountPath: /usr/share/GeoIP
+          readOnly: true
+  volumes:
+    - name: geoip
+      image:
+        reference: ghcr.io/opengeoip/country:2026.10.7
+```
+
+The file is then `/usr/share/GeoIP/opengeoip-country.mmdb`. A pod keeps the database it started with, so a new tag reaches it on the next rollout.
+
+```sh
+gh attestation verify oci://ghcr.io/opengeoip/country:latest --owner opengeoip
+```
+
 ## Accuracy
 
 Each release notes the share of RIPE Atlas probes whose country the database gets right. See [geoip-builder](https://github.com/opengeoip/geoip-builder/blob/main/docs/evaluation.md) for how it compares with GeoLite2.

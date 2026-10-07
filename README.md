@@ -29,7 +29,7 @@ gh attestation verify opengeoip-country.mmdb --owner opengeoip
 
 ## Container images
 
-Each database is also published as an OCI image holding only its file, at the root: `ghcr.io/opengeoip/country`, `ghcr.io/opengeoip/city` and `ghcr.io/opengeoip/asn`, tagged with the release name and `latest`. They suit Kubernetes [image volumes](https://kubernetes.io/docs/tasks/configure-pod-container/image-volumes/):
+Each database is also published as an OCI image holding only its file, at the root: `ghcr.io/opengeoip/databases/country`, `ghcr.io/opengeoip/databases/city` and `ghcr.io/opengeoip/databases/asn`, tagged with the release name and `latest`. They suit Kubernetes [image volumes](https://kubernetes.io/docs/tasks/configure-pod-container/image-volumes/):
 
 ```yaml
 apiVersion: v1
@@ -47,7 +47,7 @@ spec:
   volumes:
     - name: geoip
       image:
-        reference: ghcr.io/opengeoip/country:2026.10.7
+        reference: ghcr.io/opengeoip/databases/country:2026.10.7
 ```
 
 The file is then `/usr/share/GeoIP/opengeoip-country.mmdb`. A pod keeps the database it started with, so a new tag reaches it on the next rollout.
@@ -56,11 +56,11 @@ To ship a database inside your own image instead, copy it from the image:
 
 ```dockerfile
 FROM example.org/app
-COPY --from=ghcr.io/opengeoip/country:2026.10.7 /opengeoip-country.mmdb /usr/share/GeoIP/
+COPY --from=ghcr.io/opengeoip/databases/country:2026.10.7 /opengeoip-country.mmdb /usr/share/GeoIP/
 ```
 
 ```sh
-gh attestation verify oci://ghcr.io/opengeoip/country:latest --owner opengeoip
+gh attestation verify oci://ghcr.io/opengeoip/databases/country:latest --owner opengeoip
 ```
 
 ## Accuracy

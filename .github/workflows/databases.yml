@@ -120,7 +120,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       DATABASE: ${{ matrix.database }}
-      IMAGE: ghcr.io/${{ github.repository_owner }}/${{ matrix.database }}
+      IMAGE: ghcr.io/${{ github.repository }}/${{ matrix.database }}
       TAG: ${{ needs.publish.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -175,6 +175,6 @@ jobs:
           push-to-registry: true
       - uses: dataaxiom/ghcr-cleanup-action@d52806a0dc70b430571a37da1fde39733ffd640f # v1.2.2
         with:
-          package: ${{ matrix.database }}
+          package: databases/${{ matrix.database }}
           keep-n-tagged: ${{ env.KEEP_RELEASES }}
           delete-untagged: true

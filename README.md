@@ -52,6 +52,13 @@ spec:
 
 The file is then `/usr/share/GeoIP/opengeoip-country.mmdb`. A pod keeps the database it started with, so a new tag reaches it on the next rollout.
 
+To ship a database inside your own image instead, copy it from the image:
+
+```dockerfile
+FROM example.org/app
+COPY --from=ghcr.io/opengeoip/country:2026.10.7 /opengeoip-country.mmdb /usr/share/GeoIP/
+```
+
 ```sh
 gh attestation verify oci://ghcr.io/opengeoip/country:latest --owner opengeoip
 ```

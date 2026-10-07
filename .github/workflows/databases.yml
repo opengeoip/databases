@@ -187,6 +187,25 @@ jobs:
           else
             gh release create "${tag}" "${assets[@]}" --repo "${GITHUB_REPOSITORY}" --title "${tag}" --notes-file dist/notes.md --latest
           fi
+      - name: Publish the accuracy chart
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git init --quiet --initial-branch accuracy ../accuracy
+          cd ../accuracy
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          if git fetch --quiet --depth 1 "${remote}" accuracy; then
+            git reset --quiet --soft FETCH_HEAD
+          fi
+          cp "${GITHUB_WORKSPACE}/dist/accuracy.csv" "${GITHUB_WORKSPACE}/dist/accuracy.svg" .
+          git add accuracy.csv accuracy.svg
+          if git diff --cached --quiet && git rev-parse --verify --quiet HEAD > /dev/null; then
+            exit 0
+          fi
+          git commit --quiet --message "chore: accuracy of ${TAG}"
+          git push --quiet "${remote}" HEAD:accuracy
       - name: Prune old releases
         run: |
           gh release list --repo "${GITHUB_REPOSITORY}" --limit 1000 --json tagName,createdAt --jq 'sort_by(.createdAt) | reverse | .[env.KEEP_RELEASES | tonumber:] | .[].tagName' |

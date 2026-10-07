@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "7 5 * * *"
   workflow_dispatch:
+    inputs:
+      force:
+        description: Publish even if the comparison with the previous release fails
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -13,6 +18,9 @@ concurrency:
 
 env:
   KEEP_RELEASES: "30"
+  MAX_SIZE_CHANGE: "10"
+  MAX_IPV4_DROP: "1"
+  MAX_IPV6_DROP: "2"
 
 defaults:
   run:
@@ -34,7 +42,9 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - id: tag
-        run: echo "tag=$(date -u +%Y.%-m.%-d)" >> "${GITHUB_OUTPUT}"
+        run: |
+          echo "tag=$(date -u +%Y.%-m.%-d)" >> "${GITHUB_OUTPUT}"
+          echo "date=$(date -u +%F)" >> "${GITHUB_OUTPUT}"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -69,18 +79,97 @@ jobs:
           tool/geoip-builder lookup out/country.mmdb 1.1.1.1 | grep -q '"iso_code":"AU"'
           tool/geoip-builder lookup out/city.mmdb 1.1.1.1 | grep -q '"iso_code":"AU"'
           tool/geoip-builder lookup out/asn.mmdb 8.8.8.8 | grep -q '"autonomous_system_number":15169'
+      - id: evaluate
+        name: Evaluate
+        run: |
+          databases=(out/country.mmdb)
+          for month in "$(date -u +%Y-%m)" "$(date -u -d "$(date -u +%Y-%m-01) -1 day" +%Y-%m)"; do
+            if curl -fsSL "https://download.db-ip.com/free/dbip-country-lite-${month}.mmdb.gz" -o dbip-country.mmdb.gz; then
+              gunzip -f dbip-country.mmdb.gz
+              databases+=(dbip-country.mmdb)
+              break
+            fi
+          done
+          tool/geoip-builder evaluate --top 0 "${databases[@]}" | tee evaluate.txt
+          accuracy() { awk -v family="$1:" -v db="$2" '$1 == family {found=1; next} found && $1 == db {print $4; exit}' evaluate.txt; }
+          ipv4=$(accuracy IPv4 country.mmdb)
+          ipv6=$(accuracy IPv6 country.mmdb)
+          if [ -z "${ipv4}" ] || [ -z "${ipv6}" ]; then echo "No accuracy in the evaluation"; exit 1; fi
+          {
+            echo "ipv4=${ipv4}"
+            echo "ipv6=${ipv6}"
+            echo "dbip_ipv4=$(accuracy IPv4 dbip-country.mmdb)"
+            echo "dbip_ipv6=$(accuracy IPv6 dbip-country.mmdb)"
+          } >> "${GITHUB_OUTPUT}"
+      - name: Compare with the previous release
+        env:
+          FORCE: ${{ inputs.force || false }}
+          IPV4: ${{ steps.evaluate.outputs.ipv4 }}
+          IPV6: ${{ steps.evaluate.outputs.ipv6 }}
+        run: |
+          mkdir -p previous
+          if ! assets=$(gh release view --repo "${GITHUB_REPOSITORY}" --json assets --jq '.assets[].name' 2>/dev/null); then
+            echo "No previous release"
+            exit 0
+          fi
+          gh release download --repo "${GITHUB_REPOSITORY}" --dir previous --pattern 'opengeoip-*.mmdb'
+          if grep -qx accuracy.csv <<< "${assets}"; then
+            gh release download --repo "${GITHUB_REPOSITORY}" --dir previous --pattern accuracy.csv
+          fi
+          failures=()
+          for db in country city asn; do
+            old=$(stat -c %s "previous/opengeoip-${db}.mmdb")
+            new=$(stat -c %s "out/${db}.mmdb")
+            change=$(awk -v o="${old}" -v n="${new}" 'BEGIN {printf "%.1f", (n - o) * 100 / o}')
+            echo "${db}.mmdb: ${old} -> ${new} bytes (${change} %)"
+            if awk -v c="${change}" -v m="${MAX_SIZE_CHANGE}" 'BEGIN {exit !(c > m || c < -m)}'; then
+              failures+=("${db}.mmdb changed size by ${change} %")
+            fi
+          done
+          if [ -f previous/accuracy.csv ]; then
+            last=$(tail -n 1 previous/accuracy.csv)
+            for family in 4 6; do
+              old=$(cut -d, -f$((family == 4 ? 3 : 4)) <<< "${last}")
+              new=$([ "${family}" = 4 ] && echo "${IPV4}" || echo "${IPV6}")
+              limit=$([ "${family}" = 4 ] && echo "${MAX_IPV4_DROP}" || echo "${MAX_IPV6_DROP}")
+              echo "IPv${family} accuracy: ${old} -> ${new} %"
+              if awk -v o="${old}" -v n="${new}" -v l="${limit}" 'BEGIN {exit !(o - n > l)}'; then
+                failures+=("IPv${family} accuracy dropped from ${old} to ${new} %")
+              fi
+            done
+          fi
+          if [ "${#failures[@]}" -gt 0 ]; then
+            printf '%s\n' "${failures[@]}" | tee -a "${GITHUB_STEP_SUMMARY}"
+            if [ "${FORCE}" != true ]; then exit 1; fi
+            echo "Published anyway" | tee -a "${GITHUB_STEP_SUMMARY}"
+          fi
       - name: Prepare the release
+        env:
+          DATE: ${{ steps.tag.outputs.date }}
+          IPV4: ${{ steps.evaluate.outputs.ipv4 }}
+          IPV6: ${{ steps.evaluate.outputs.ipv6 }}
+          DBIP_IPV4: ${{ steps.evaluate.outputs.dbip_ipv4 }}
+          DBIP_IPV6: ${{ steps.evaluate.outputs.dbip_ipv6 }}
         run: |
           mkdir -p dist
           for db in country city asn; do cp "out/${db}.mmdb" "dist/opengeoip-${db}.mmdb"; done
           (cd dist && sha256sum ./*.mmdb > SHA256SUMS)
-          tool/geoip-builder evaluate --top 0 out/country.mmdb > evaluate.txt
-          accuracy() { awk -v family="$1:" '$1 == family {found=1; next} found && /correct/ {print $4; exit}' evaluate.txt; }
           version=$(tool/geoip-builder --version | cut -d' ' -f2)
+          if [ -f previous/accuracy.csv ]; then
+            grep -v "^${DATE}," previous/accuracy.csv > dist/accuracy.csv
+          else
+            echo "date,geoip_builder,ipv4,ipv6,dbip_ipv4,dbip_ipv6" > dist/accuracy.csv
+          fi
+          echo "${DATE},${version},${IPV4},${IPV6},${DBIP_IPV4},${DBIP_IPV6}" >> dist/accuracy.csv
+          python3 scripts/accuracy-chart.py dist/accuracy.csv dist/accuracy.svg
           {
             echo "Built with geoip-builder ${version} and geofeed catalog $(gh release view --repo opengeoip/geofeeds --json tagName --jq .tagName)."
             echo
-            echo "Country right for $(accuracy IPv4) % of IPv4 and $(accuracy IPv6) % of IPv6 RIPE Atlas probes."
+            echo "Country right for ${IPV4} % of IPv4 and ${IPV6} % of IPv6 RIPE Atlas probes."
+            if [ -n "${DBIP_IPV4}" ]; then
+              echo
+              echo "For comparison, [DB-IP Lite](https://db-ip.com) gets ${DBIP_IPV4} % and ${DBIP_IPV6} %."
+            fi
           } > dist/notes.md
           cat dist/notes.md
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
@@ -91,7 +180,7 @@ jobs:
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
           tag="${TAG}"
-          assets=(dist/opengeoip-country.mmdb dist/opengeoip-city.mmdb dist/opengeoip-asn.mmdb dist/SHA256SUMS)
+          assets=(dist/opengeoip-country.mmdb dist/opengeoip-city.mmdb dist/opengeoip-asn.mmdb dist/SHA256SUMS dist/accuracy.csv dist/accuracy.svg)
           if gh release view "${tag}" --repo "${GITHUB_REPOSITORY}" > /dev/null 2>&1; then
             gh release upload "${tag}" "${assets[@]}" --repo "${GITHUB_REPOSITORY}" --clobber
             gh release edit "${tag}" --repo "${GITHUB_REPOSITORY}" --notes-file dist/notes.md --latest

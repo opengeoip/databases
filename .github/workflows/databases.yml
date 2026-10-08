@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "7 5 * * *"
   workflow_dispatch:
+    inputs:
+      force:
+        description: Publish even if the comparison with the previous release fails
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -13,6 +18,8 @@ concurrency:
 
 env:
   KEEP_RELEASES: "30"
+  MAX_SIZE_CHANGE: "10"
+  MAX_ACCURACY_DROP: "1"
 
 defaults:
   run:
@@ -34,7 +41,9 @@ jobs:
       GH_TOKEN: ${{ github.token }}
     steps:
       - id: tag
-        run: echo "tag=$(date -u +%Y.%-m.%-d)" >> "${GITHUB_OUTPUT}"
+        run: |
+          echo "tag=$(date -u +%Y.%-m.%-d)" >> "${GITHUB_OUTPUT}"
+          echo "date=$(date -u +%F)" >> "${GITHUB_OUTPUT}"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -66,21 +75,84 @@ jobs:
             size=$(stat -c %s "out/${db}.mmdb")
             if [ "${size}" -lt 5000000 ]; then echo "out/${db}.mmdb is only ${size} bytes"; exit 1; fi
           done
-          tool/geoip-builder lookup out/country.mmdb 1.1.1.1 | grep -q '"iso_code":"AU"'
-          tool/geoip-builder lookup out/city.mmdb 1.1.1.1 | grep -q '"iso_code":"AU"'
-          tool/geoip-builder lookup out/asn.mmdb 8.8.8.8 | grep -q '"autonomous_system_number":15169'
+      - id: evaluate
+        name: Evaluate
+        run: |
+          tool/geoip-builder evaluate --top 0 out/country.mmdb | tee evaluate.txt
+          accuracy() { awk -v family="$1:" '$1 == family {found=1; next} found && /correct/ {print $4; exit}' evaluate.txt; }
+          ipv4=$(accuracy IPv4)
+          ipv6=$(accuracy IPv6)
+          if [ -z "${ipv4}" ] || [ -z "${ipv6}" ]; then echo "No accuracy in the evaluation"; exit 1; fi
+          echo "ipv4=${ipv4}" >> "${GITHUB_OUTPUT}"
+          echo "ipv6=${ipv6}" >> "${GITHUB_OUTPUT}"
+      - name: Compare with the previous release
+        env:
+          FORCE: ${{ inputs.force || false }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          DATE: ${{ steps.tag.outputs.date }}
+          IPV4: ${{ steps.evaluate.outputs.ipv4 }}
+          IPV6: ${{ steps.evaluate.outputs.ipv6 }}
+        run: |
+          failures=()
+          previous=$(gh release list --repo "${GITHUB_REPOSITORY}" --limit 10 --json tagName,createdAt --jq '[sort_by(.createdAt) | reverse | .[] | select(.tagName != env.TAG)][0].tagName // empty')
+          if [ -n "${previous}" ]; then
+            gh release download "${previous}" --repo "${GITHUB_REPOSITORY}" --dir previous --pattern 'opengeoip-*.mmdb'
+            for db in country city asn; do
+              old=$(stat -c %s "previous/opengeoip-${db}.mmdb")
+              new=$(stat -c %s "out/${db}.mmdb")
+              change=$(awk -v o="${old}" -v n="${new}" 'BEGIN {printf "%.1f", (n - o) * 100 / o}')
+              echo "${db}.mmdb: ${old} bytes in ${previous}, ${new} now (${change} %)"
+              if awk -v c="${change}" -v m="${MAX_SIZE_CHANGE}" 'BEGIN {exit !(c > m || c < -m)}'; then
+                failures+=("${db}.mmdb changed size by ${change} % since ${previous}")
+              fi
+            done
+          fi
+          remote="https://github.com/${GITHUB_REPOSITORY}.git"
+          status=0
+          git ls-remote --exit-code --heads "${remote}" accuracy > /dev/null || status=$?
+          if [ "${status}" -eq 0 ]; then
+            git fetch --quiet --depth 1 "${remote}" accuracy
+            git show FETCH_HEAD:accuracy.csv > history.csv
+          elif [ "${status}" -ne 2 ]; then
+            exit "${status}"
+          else
+            echo "date,geoip_builder,ipv4,ipv6" > history.csv
+          fi
+          last=$(grep -v -e "^date," -e "^${DATE}," history.csv | tail -n 1 || true)
+          if [ -n "${last}" ]; then
+            IFS=, read -r last_date _ old4 old6 <<< "${last}"
+            for family in 4 6; do
+              old=$([ "${family}" = 4 ] && echo "${old4}" || echo "${old6}")
+              new=$([ "${family}" = 4 ] && echo "${IPV4}" || echo "${IPV6}")
+              echo "IPv${family} accuracy: ${old} % on ${last_date}, ${new} % now"
+              if awk -v o="${old}" -v n="${new}" -v l="${MAX_ACCURACY_DROP}" 'BEGIN {exit !(o - n > l)}'; then
+                failures+=("IPv${family} accuracy dropped from ${old} % on ${last_date} to ${new} %")
+              fi
+            done
+          fi
+          if [ "${#failures[@]}" -gt 0 ]; then
+            printf '%s\n' "${failures[@]}" | tee -a "${GITHUB_STEP_SUMMARY}"
+            if [ "${FORCE}" != true ]; then exit 1; fi
+            echo "Published anyway" | tee -a "${GITHUB_STEP_SUMMARY}"
+          fi
       - name: Prepare the release
+        env:
+          DATE: ${{ steps.tag.outputs.date }}
+          IPV4: ${{ steps.evaluate.outputs.ipv4 }}
+          IPV6: ${{ steps.evaluate.outputs.ipv6 }}
         run: |
           mkdir -p dist
           for db in country city asn; do cp "out/${db}.mmdb" "dist/opengeoip-${db}.mmdb"; done
           (cd dist && sha256sum ./*.mmdb > SHA256SUMS)
-          tool/geoip-builder evaluate --top 0 out/country.mmdb > evaluate.txt
-          accuracy() { awk -v family="$1:" '$1 == family {found=1; next} found && /correct/ {print $4; exit}' evaluate.txt; }
           version=$(tool/geoip-builder --version | cut -d' ' -f2)
+          mkdir -p accuracy
+          grep -v "^${DATE}," history.csv > accuracy/accuracy.csv
+          echo "${DATE},${version},${IPV4},${IPV6}" >> accuracy/accuracy.csv
+          python3 scripts/accuracy-chart.py accuracy/accuracy.csv accuracy/accuracy.svg
           {
             echo "Built with geoip-builder ${version} and geofeed catalog $(gh release view --repo opengeoip/geofeeds --json tagName --jq .tagName)."
             echo
-            echo "Country right for $(accuracy IPv4) % of IPv4 and $(accuracy IPv6) % of IPv6 RIPE Atlas probes."
+            echo "Country right for ${IPV4} % of IPv4 and ${IPV6} % of IPv6 RIPE Atlas probes."
           } > dist/notes.md
           cat dist/notes.md
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
@@ -98,6 +170,24 @@ jobs:
           else
             gh release create "${tag}" "${assets[@]}" --repo "${GITHUB_REPOSITORY}" --title "${tag}" --notes-file dist/notes.md --latest
           fi
+      - name: Publish the accuracy history
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          cd accuracy
+          git init --quiet --initial-branch accuracy
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          if git fetch --quiet --depth 1 "${remote}" accuracy; then
+            git reset --quiet --soft FETCH_HEAD
+          fi
+          git add accuracy.csv accuracy.svg
+          if git diff --cached --quiet && git rev-parse --verify --quiet HEAD > /dev/null; then
+            exit 0
+          fi
+          git commit --quiet --message "chore: accuracy of ${TAG}"
+          git push --quiet "${remote}" HEAD:accuracy
       - name: Prune old releases
         run: |
           gh release list --repo "${GITHUB_REPOSITORY}" --limit 1000 --json tagName,createdAt --jq 'sort_by(.createdAt) | reverse | .[env.KEEP_RELEASES | tonumber:] | .[].tagName' |

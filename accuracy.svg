@@ -1,26 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 360" width="800" height="360" font-family="sans-serif" font-size="12" fill="#8b949e">
 <line x1="56" x2="710" y1="320.0" y2="320.0" stroke="#8b949e" stroke-opacity="0.25"/>
-<text x="48" y="324.0" text-anchor="end">80 %</text>
-<line x1="56" x2="710" y1="270.7" y2="270.7" stroke="#8b949e" stroke-opacity="0.25"/>
-<text x="48" y="274.7" text-anchor="end">83 %</text>
-<line x1="56" x2="710" y1="221.3" y2="221.3" stroke="#8b949e" stroke-opacity="0.25"/>
-<text x="48" y="225.3" text-anchor="end">86 %</text>
+<text x="48" y="324.0" text-anchor="end">94 %</text>
+<line x1="56" x2="710" y1="246.0" y2="246.0" stroke="#8b949e" stroke-opacity="0.25"/>
+<text x="48" y="250.0" text-anchor="end">95 %</text>
 <line x1="56" x2="710" y1="172.0" y2="172.0" stroke="#8b949e" stroke-opacity="0.25"/>
-<text x="48" y="176.0" text-anchor="end">89 %</text>
-<line x1="56" x2="710" y1="122.7" y2="122.7" stroke="#8b949e" stroke-opacity="0.25"/>
-<text x="48" y="126.7" text-anchor="end">92 %</text>
-<line x1="56" x2="710" y1="73.3" y2="73.3" stroke="#8b949e" stroke-opacity="0.25"/>
-<text x="48" y="77.3" text-anchor="end">95 %</text>
+<text x="48" y="176.0" text-anchor="end">96 %</text>
+<line x1="56" x2="710" y1="98.0" y2="98.0" stroke="#8b949e" stroke-opacity="0.25"/>
+<text x="48" y="102.0" text-anchor="end">97 %</text>
 <line x1="56" x2="710" y1="24.0" y2="24.0" stroke="#8b949e" stroke-opacity="0.25"/>
 <text x="48" y="28.0" text-anchor="end">98 %</text>
 <text x="56.0" y="340" text-anchor="middle">2026-10-07</text>
 <text x="710.0" y="340" text-anchor="middle">2026-10-08</text>
-<polyline points="56.0,53.6 710.0,54.3" fill="none" stroke="#4fd1c5" stroke-width="2.5"/>
-<circle cx="710.0" cy="54.3" r="3.5" fill="#4fd1c5"/>
+<polyline points="56.0,154.2 710.0,157.9" fill="none" stroke="#4fd1c5" stroke-width="2.5"/>
+<circle cx="710.0" cy="157.9" r="3.5" fill="#4fd1c5"/>
 <line x1="726" x2="750" y1="34" y2="34" stroke="#4fd1c5" stroke-width="2.5"/>
 <text x="756" y="38">IPv4</text>
-<polyline points="56.0,293.5 710.0,296.6" fill="none" stroke="#f6ad55" stroke-width="2.5"/>
-<circle cx="710.0" cy="296.6" r="3.5" fill="#f6ad55"/>
+<polyline points="56.0,239.3 710.0,243.0" fill="none" stroke="#f6ad55" stroke-width="2.5"/>
+<circle cx="710.0" cy="243.0" r="3.5" fill="#f6ad55"/>
 <line x1="726" x2="750" y1="56" y2="56" stroke="#f6ad55" stroke-width="2.5"/>
 <text x="756" y="60">IPv6</text>
 </svg>

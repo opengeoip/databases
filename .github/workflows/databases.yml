@@ -83,8 +83,7 @@ jobs:
           ipv4=$(accuracy IPv4)
           ipv6=$(accuracy IPv6)
           if [ -z "${ipv4}" ] || [ -z "${ipv6}" ]; then echo "No accuracy in the evaluation"; exit 1; fi
-          echo "ipv4=${ipv4}" >> "${GITHUB_OUTPUT}"
-          echo "ipv6=${ipv6}" >> "${GITHUB_OUTPUT}"
+          printf 'ipv4=%.2f\nipv6=%.2f\n' "${ipv4}" "${ipv6}" >> "${GITHUB_OUTPUT}"
       - name: Compare with the previous release
         env:
           FORCE: ${{ inputs.force || false }}

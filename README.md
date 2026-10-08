@@ -65,7 +65,11 @@ gh attestation verify oci://ghcr.io/opengeoip/databases/country:latest --owner o
 
 ## Accuracy
 
-Each release notes the share of RIPE Atlas probes whose country the database gets right. See [geoip-builder](https://github.com/opengeoip/geoip-builder/blob/main/docs/evaluation.md) for how it compares with GeoLite2.
+Each release notes the share of RIPE Atlas probes whose country the database gets right:
+
+![Country accuracy on RIPE Atlas probes](https://raw.githubusercontent.com/opengeoip/databases/accuracy/accuracy.svg)
+
+The history is in [`accuracy.csv`](https://github.com/opengeoip/databases/blob/accuracy/accuracy.csv). A build is not published when its accuracy drops by more than 1 point in IPv4 or IPv6, or when a database changes size by more than 10 %, compared with the previous release. See [geoip-builder](https://github.com/opengeoip/geoip-builder/blob/main/docs/evaluation.md) for how it compares with GeoLite2.
 
 ## License
 

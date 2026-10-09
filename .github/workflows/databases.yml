@@ -68,6 +68,8 @@ jobs:
         with:
           path: data
           key: data-${{ github.run_id }}
+      - name: Verify the geofeed catalog
+        run: gh attestation verify data/geofeeds-catalog.csv --repo opengeoip/geofeeds --signer-workflow opengeoip/geofeeds/.github/workflows/catalog.yml
       - name: Build
         run: tool/geoip-builder build
       - name: Check

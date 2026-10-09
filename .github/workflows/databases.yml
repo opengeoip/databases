@@ -1,8 +1,9 @@
 name: Databases
 
 on:
-  schedule:
-    - cron: "7 5 * * *"
+  repository_dispatch:
+    types:
+      - catalog
   workflow_dispatch:
     inputs:
       force:

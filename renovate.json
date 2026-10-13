@@ -7,7 +7,7 @@
     "helpers:pinGitHubActionDigests"
   ],
   "timezone": "Europe/Paris",
-  "schedule": ["before 6am on monday"],
+  "schedule": ["on monday"],
   "packageRules": [
     {
       "matchManagers": ["github-actions"],

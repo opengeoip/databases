@@ -1,21 +1,21 @@
-# Accuracy on 2026-10-17
+# Accuracy on 2026-10-18
 
-Country right for 96.26 % of IPv4 and 95.10 % of IPv6 RIPE Atlas probes, with the number of probe addresses in brackets:
+Country right for 96.28 % of IPv4 and 95.13 % of IPv6 RIPE Atlas probes, with the number of probe addresses in brackets:
 
 | Network | IPv4 | IPv6 |
 |---|---|---|
-| Access (Cable/DSL/ISP) | 99.05 % (4649) | 99.31 % (2324) |
-| Transit (NSP) | 96.39 % (2717) | 92.23 % (1570) |
-| Content and hosting | 83.57 % (931) | 86.94 % (651) |
-| Other | 95.11 % (900) | 92.62 % (732) |
-| Not in PeeringDB | 95.98 % (1764) | 97.72 % (701) |
+| Access (Cable/DSL/ISP) | 99.03 % (4639) | 99.31 % (2326) |
+| Transit (NSP) | 96.49 % (2734) | 92.32 % (1576) |
+| Content and hosting | 84.05 % (934) | 86.96 % (644) |
+| Other | 95.13 % (904) | 92.58 % (728) |
+| Not in PeeringDB | 95.81 % (1767) | 97.71 % (699) |
 
 | Continent | IPv4 | IPv6 |
 |---|---|---|
-| Africa | 93.90 % (295) | 89.29 % (140) |
-| Asia | 93.35 % (1278) | 90.82 % (621) |
-| Europe | 96.95 % (6821) | 95.44 % (3882) |
-| North America | 97.14 % (1854) | 97.32 % (934) |
-| Oceania | 95.65 % (345) | 96.08 % (204) |
-| South America | 91.58 % (368) | 94.42 % (197) |
+| Africa | 93.69 % (301) | 89.51 % (143) |
+| Asia | 93.27 % (1277) | 90.87 % (624) |
+| Europe | 97.01 % (6829) | 95.48 % (3871) |
+| North America | 97.15 % (1857) | 97.31 % (929) |
+| Oceania | 95.63 % (343) | 96.10 % (205) |
+| South America | 91.64 % (371) | 94.53 % (201) |
 

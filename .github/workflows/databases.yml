@@ -285,3 +285,37 @@ jobs:
           package: databases/${{ matrix.database }}
           keep-n-tagged: ${{ env.KEEP_RELEASES }}
           delete-untagged: true
+
+  notify:
+    name: Notify
+    needs:
+      - publish
+      - image
+    if: always() && github.repository_owner == 'opengeoip'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TITLE: Databases workflow failing
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Open or update the failure issue
+        if: contains(needs.*.result, 'failure')
+        run: |
+          body="@alviss7 [Run ${GITHUB_RUN_ID}](${RUN_URL}) failed on $(date -u +%F)."
+          number=$(gh issue list --state open --search "\"${TITLE}\" in:title" --json number,title --jq '[.[] | select(.title == env.TITLE)][0].number // empty')
+          if [ -n "${number}" ]; then
+            gh issue comment "${number}" --body "${body}"
+          else
+            gh issue create --title "${TITLE}" --label bug --body "${body}"
+          fi
+      - name: Close the failure issue
+        if: needs.publish.result == 'success' && needs.image.result == 'success'
+        run: |
+          gh issue list --state open --search "\"${TITLE}\" in:title" --json number,title --jq '.[] | select(.title == env.TITLE) | .number' |
+            while read -r number; do
+              gh issue close "${number}" --comment "Fixed by [run ${GITHUB_RUN_ID}](${RUN_URL})."
+            done

@@ -7,7 +7,6 @@
     "helpers:pinGitHubActionDigests"
   ],
   "timezone": "Europe/Paris",
-  "automergeType": "branch",
   "schedule": ["on monday"],
   "packageRules": [
     {

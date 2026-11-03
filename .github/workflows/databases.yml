@@ -96,7 +96,7 @@ jobs:
           IPV6: ${{ steps.evaluate.outputs.ipv6 }}
         run: |
           failures=()
-          previous=$(gh release list --repo "${GITHUB_REPOSITORY}" --limit 10 --json tagName,createdAt --jq '[sort_by(.createdAt) | reverse | .[] | select(.tagName != env.TAG)][0].tagName // empty')
+          previous=$(gh release list --repo "${GITHUB_REPOSITORY}" --limit 10 --json tagName,publishedAt --jq '[sort_by(.publishedAt) | reverse | .[] | select(.tagName != env.TAG)][0].tagName // empty')
           if [ -n "${previous}" ]; then
             gh release download "${previous}" --repo "${GITHUB_REPOSITORY}" --dir previous --pattern 'opengeoip-*.mmdb'
             for db in country city asn; do
@@ -203,7 +203,7 @@ jobs:
           git push --quiet "${remote}" HEAD:accuracy
       - name: Prune old releases
         run: |
-          gh release list --repo "${GITHUB_REPOSITORY}" --limit 1000 --json tagName,createdAt --jq 'sort_by(.createdAt) | reverse | .[env.KEEP_RELEASES | tonumber:] | .[].tagName' |
+          gh release list --repo "${GITHUB_REPOSITORY}" --limit 1000 --json tagName,publishedAt --jq 'sort_by(.publishedAt) | reverse | .[env.KEEP_RELEASES | tonumber:] | .[].tagName' |
             while read -r tag; do
               gh release delete "${tag}" --repo "${GITHUB_REPOSITORY}" --cleanup-tag --yes
             done
